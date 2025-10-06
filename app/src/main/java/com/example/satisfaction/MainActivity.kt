@@ -12,6 +12,7 @@
 
 package com.example.satisfaction
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Bundle
 import android.widget.Toast
@@ -22,8 +23,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -34,10 +37,13 @@ import com.example.satisfaction.databinding.ActivityMainBinding
 import com.google.firebase.Firebase
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.database
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlin.getValue
 
 // --------------------- Entity ---------------------
 @Entity(tableName = "notes")
@@ -81,8 +87,8 @@ abstract class AppDatabase : RoomDatabase() {
 }
 
 // --------------------- Repository ---------------------
-class NoteRepository(private val dao: NoteDao) {
-    val notes = dao.getAll()
+open class NoteRepository(private val dao: NoteDao) {
+    open val notes = dao.getAll()
     suspend fun insert(note: Note) = dao.insert(note)
     suspend fun update(note: Note) = dao.update(note)
     suspend fun delete(note: Note) = dao.delete(note)
@@ -148,13 +154,15 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun NoteApp(
     viewModel: NoteViewModel = viewModel(),
-    fbRef: DatabaseReference
+    fbRef: DatabaseReference?  // nullable because Preview can't instantiate a real FirebaseDatabase
 ) {
     val notes by viewModel.notes.collectAsState()
     var newText by remember { mutableStateOf("") }
     val context = LocalContext.current // 1. Get the context
 
-    Column(modifier = Modifier.padding(16.dp)) {
+    Column(modifier = Modifier
+        .padding(16.dp))
+    {
         OutlinedTextField(
             value = newText,
             onValueChange = { newText = it },
@@ -166,20 +174,22 @@ fun NoteApp(
 // write text to Firebase Database
         Button(onClick = {
             if (newText.isNotBlank()) {
-                fbRef.setValue(newText)
+                fbRef?.setValue(newText)
 
-
-                    .addOnSuccessListener {
+                    ?.addOnSuccessListener {
                         // 2. Show Toast on success
                         Toast.makeText(context, "Value updated in Firebase", Toast.LENGTH_SHORT).show()
                     }
-                    .addOnFailureListener {
+                    ?.addOnFailureListener {
                         // Optional: Show a different message on failure
                         Toast.makeText(context, "Failed to update value", Toast.LENGTH_SHORT).show()
                     }
                 newText = ""
             }
-        }) {
+        },
+// Disable the button if Firebase is not available (i.e., in a preview)
+            enabled = fbRef != null
+        ) {
             Text("Update DB")
         }
 
@@ -201,20 +211,62 @@ fun NoteApp(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(thisNote.text)
                     Row {
                         Button(onClick = { viewModel.updateNote(thisNote) }) {
-                            Text("Update")
+                            Text("Upd")
                         }
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Button(onClick = { viewModel.deleteNote(thisNote) }) {
-                            Text("Delete")
+                            Text("Del")
                         }
                     }
                 }
             }
         }
     }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun NoteAppPreview() {
+    // 1. Create a FAKE repository with hardcoded data for the preview
+    val fakeRepository = object : NoteRepository(dao = FakeNoteDao()) {
+        // Override the 'notes' property to return a hardcoded list for the preview
+        override val notes: Flow<List<Note>> = flowOf(
+            listOf(
+                Note(id = 1, text = "first note"),
+                Note(id = 2, text = "second longer note"),
+                Note(id = 3, text = "third in the list"),
+                Note(id = 4, text = "fourth note")
+            )
+        )
+    }
+
+    // 2. Create a real ViewModel instance, but give it the fake repository
+    val fakeViewModelFactory = object : ViewModelProvider.Factory {
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            return NoteViewModel(fakeRepository) as T
+        }
+    }
+
+    // 3. Call your NoteApp composable within a theme
+    MaterialTheme {
+        NoteApp(
+            viewModel = viewModel(factory = fakeViewModelFactory),
+            fbRef = null // <-- Pass null for the preview
+        )
+    }
+}
+
+// 5. Create a Fake DAO implementation to satisfy the NoteRepository constructor.
+//    Its methods don't need to do anything.
+class FakeNoteDao : NoteDao {
+    override suspend fun insert(note: Note) {}
+    override suspend fun update(note: Note) {}
+    override suspend fun delete(note: Note) {}
+    override fun getAll(): Flow<List<Note>> = flowOf(emptyList()) // Default empty list
 }

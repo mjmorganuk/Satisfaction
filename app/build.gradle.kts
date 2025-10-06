@@ -64,6 +64,7 @@ dependencies {
 
     // Lifecycle
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.5")
+    implementation("androidx.navigation:navigation-compose:2.7.7")
 
     // Optional (for preview/debug)
     debugImplementation("androidx.compose.ui:ui-tooling:1.7.2")
