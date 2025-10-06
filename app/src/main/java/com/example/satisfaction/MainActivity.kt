@@ -14,6 +14,7 @@ package com.example.satisfaction
 
 import android.content.Context
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -22,12 +23,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room.*
+import com.example.satisfaction.databinding.ActivityMainBinding
+import com.google.firebase.Firebase
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.FirebaseDatabase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
@@ -43,10 +49,14 @@ data class Note(
 // --------------------- DAO ---------------------
 @Dao
 interface NoteDao {
-    @Insert suspend fun insert(note: Note)
-    @Update suspend fun update(note: Note)
-    @Delete suspend fun delete(note: Note)
-    @Query("SELECT * FROM notes") fun getAll(): Flow<List<Note>>
+    @Insert
+    suspend fun insert(note: Note)
+    @Update
+    suspend fun update(note: Note)
+    @Delete
+    suspend fun delete(note: Note)
+    @Query("SELECT * FROM notes")
+    fun getAll(): Flow<List<Note>>
 }
 
 // --------------------- Database ---------------------
@@ -55,7 +65,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
 
     companion object {
-        @Volatile private var INSTANCE: AppDatabase? = null
+        @Volatile
+        private var INSTANCE: AppDatabase? = null
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -94,6 +105,7 @@ class NoteViewModel(private val repository: NoteRepository) : ViewModel() {
     fun deleteNote(note: Note) = viewModelScope.launch {
         repository.delete(note)
     }
+
 }
 
 // --------------------- ViewModel Factory ---------------------
@@ -105,40 +117,76 @@ class NoteViewModelFactory(private val repository: NoteRepository) : ViewModelPr
 
 // --------------------- MainActivity + UI ---------------------
 class MainActivity : ComponentActivity() {
+
+    lateinit var binding: ActivityMainBinding
+
+    private lateinit var firebaseRef: DatabaseReference
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        binding = ActivityMainBinding.inflate(layoutInflater)
 
         val dao = AppDatabase.getDatabase(application).noteDao()
         val repository = NoteRepository(dao)
         val factory = NoteViewModelFactory(repository)
         val noteViewModel: NoteViewModel by viewModels { factory }
 
+
+        firebaseRef = FirebaseDatabase.getInstance().getReference("test")
+
         setContent {
             MaterialTheme {
-                NoteApp(noteViewModel)
+                NoteApp(noteViewModel, this.firebaseRef)
             }
         }
+
+
     }
 }
 
 @Composable
-fun NoteApp(viewModel: NoteViewModel = viewModel()) {
+fun NoteApp(
+    viewModel: NoteViewModel = viewModel(),
+    fbRef: DatabaseReference
+) {
     val notes by viewModel.notes.collectAsState()
-    var text by remember { mutableStateOf("") }
+    var newText by remember { mutableStateOf("") }
+    val context = LocalContext.current // 1. Get the context
 
     Column(modifier = Modifier.padding(16.dp)) {
         OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
+            value = newText,
+            onValueChange = { newText = it },
             label = { Text("Enter note") },
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(8.dp))
 
+// write text to Firebase Database
         Button(onClick = {
-            if (text.isNotBlank()) {
-                viewModel.addNote(text)
-                text = ""
+            if (newText.isNotBlank()) {
+                fbRef.setValue(newText)
+
+
+                    .addOnSuccessListener {
+                        // 2. Show Toast on success
+                        Toast.makeText(context, "Value updated in Firebase", Toast.LENGTH_SHORT).show()
+                    }
+                    .addOnFailureListener {
+                        // Optional: Show a different message on failure
+                        Toast.makeText(context, "Failed to update value", Toast.LENGTH_SHORT).show()
+                    }
+                newText = ""
+            }
+        }) {
+            Text("Update DB")
+        }
+
+        Button(onClick = {
+            if (newText.isNotBlank()) {
+                viewModel.addNote(newText)
+                newText = ""
             }
         }) {
             Text("Add Note")

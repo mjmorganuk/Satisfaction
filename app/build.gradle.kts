@@ -1,10 +1,12 @@
 plugins {
-    alias(libs.plugins.android.application) // Changed from id 'com.android.application'
+    id("com.android.application")
     alias(libs.plugins.kotlin.android)   // Changed from id 'org.jetbrains.kotlin.android'
     alias(libs.plugins.compose.compiler)
     // For kapt, if it's not in your libs.versions.toml, you'd keep it as is or add it there.
     // Assuming it's not, or you prefer to declare it directly:
     id("kotlin-kapt")
+    id("com.google.gms.google-services")
+
 }
 
 android {
@@ -20,6 +22,7 @@ android {
     }
 
     buildFeatures {
+        viewBinding = true
         compose = true
     }
 
@@ -33,6 +36,11 @@ android {
 }
 
 dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:34.3.0"))
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.activity)
+    implementation(libs.androidx.constraintlayout)
+    implementation(libs.firebase.database)
     val room_version = "2.8.1"
     implementation("com.google.android.material:material:1.12.0") // Or the latest version
     // ... other dependencies

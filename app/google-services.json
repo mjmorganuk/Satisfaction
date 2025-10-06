@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "614306135455",
+    "firebase_url": "https://satisfaction-a46c63d4-default-rtdb.firebaseio.com",
+    "project_id": "satisfaction-a46c63d4",
+    "storage_bucket": "satisfaction-a46c63d4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:614306135455:android:a2fc1986c9365a20f311aa",
+        "android_client_info": {
+          "package_name": "com.example.satisfaction"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBFp5fuPxCKmtqdtUQzoGB3_okZ2hZhLqY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
