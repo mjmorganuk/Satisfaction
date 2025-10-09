@@ -12,38 +12,74 @@
 
 package com.example.satisfaction
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.room.*
+import androidx.navigation.NavController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.room.Dao
+import androidx.room.Database
+import androidx.room.Delete
+import androidx.room.Entity
+import androidx.room.Insert
+import androidx.room.PrimaryKey
+import androidx.room.Query
+import androidx.room.Room
+import androidx.room.RoomDatabase
+import androidx.room.Update
 import com.example.satisfaction.databinding.ActivityMainBinding
-import com.google.firebase.Firebase
+import com.example.satisfaction.models.Contacts
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.database
+import com.google.firebase.database.ValueEventListener
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlin.getValue
 
 // --------------------- Entity ---------------------
 @Entity(tableName = "notes")
@@ -57,10 +93,13 @@ data class Note(
 interface NoteDao {
     @Insert
     suspend fun insert(note: Note)
+
     @Update
     suspend fun update(note: Note)
+
     @Delete
     suspend fun delete(note: Note)
+
     @Query("SELECT * FROM notes")
     fun getAll(): Flow<List<Note>>
 }
@@ -139,30 +178,253 @@ class MainActivity : ComponentActivity() {
         val noteViewModel: NoteViewModel by viewModels { factory }
 
 
-        firebaseRef = FirebaseDatabase.getInstance().getReference("test")
+        firebaseRef = FirebaseDatabase.getInstance().getReference("Contacts")
 
         setContent {
             MaterialTheme {
-                NoteApp(noteViewModel, this.firebaseRef)
+//                NoteApp(noteViewModel, this.firebaseRef)
+                // --- Start of Navigation Setup ---
+                val navController = rememberNavController()
+                NavHost(
+                    navController = navController,
+                    startDestination = "note_app"
+                ) {
+                    composable("note_app") {
+                        NoteApp(
+                            viewModel = noteViewModel,
+                            fbRef = this@MainActivity.firebaseRef,
+                            navController = navController // Pass NavController
+                        )
+                    }
+                    composable("contacts") {
+                        ContactForm(
+                            navController = navController,
+                            fbRef = this@MainActivity.firebaseRef
+                        ) // Pass NavController
+                    }
+                    composable("contact_list") {
+                        ContactList(
+                            navController = navController,
+                            fbRef = this@MainActivity.firebaseRef
+                        )
+                    }
+
+                }
+                // --- End of Navigation Setup ---
+            }
+        }
+    }
+}
+
+// NEW: SecondScreen Composable
+@Composable
+fun ContactForm(
+    navController: NavController,
+    fbRef: DatabaseReference?  // nullable because Preview can't instantiate a real FirebaseDatabase
+) {
+    var otlname by remember { mutableStateOf("") }
+    var otlemail by remember { mutableStateOf("") }
+    var otlphone by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Top,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Contacts Data", style = MaterialTheme.typography.headlineMedium)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // name input field
+        OutlinedTextField(
+            value = otlname,
+            onValueChange = { otlname = it },
+            label = { Text("Name") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // email input field
+        OutlinedTextField(
+            value = otlemail,
+            onValueChange = { otlemail = it },
+            label = { Text("Email") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // phone input field
+        OutlinedTextField(
+            value = otlphone,
+            onValueChange = { otlphone = it },
+            label = { Text("Phone") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            onClick = {
+                // Save the data to the Repository
+                val contactId = fbRef?.push()?.key!!
+                val contacts =
+                    Contacts(id = contactId, name = otlname, email = otlemail, phone = otlphone)
+
+                fbRef?.child(contactId)?.setValue(contacts)
+                    ?.addOnCompleteListener {
+                        Toast.makeText(context, "Contact Saved", Toast.LENGTH_SHORT).show()
+                    }
+                    ?.addOnFailureListener {
+                        Toast.makeText(context, "Failed to save contact", Toast.LENGTH_SHORT).show()
+                    }
+
+            },
+            // Disable the button if Firebase is not available (i.e., in a preview)
+            enabled = fbRef != null
+        ) {
+            Text("Save Contact")
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(onClick = {
+            // Navigate back to the NoteApp screen
+            navController.popBackStack()
+        }) {
+            Text("Go Back to Notes")
+        }
+    }
+}
+
+
+@Composable
+fun ContactList(
+    navController: NavController,
+    fbRef: DatabaseReference?
+) {
+
+    var contacts by remember { mutableStateOf<List<Contacts>>(emptyList()) }
+    val context = LocalContext.current
+
+// Use DisposableEffect to manage the listener's lifecycle
+    DisposableEffect(fbRef) { // Re-run if fbRef changes
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val newContacts = mutableListOf<Contacts>()
+                if (snapshot.exists()) {
+                    snapshot.children.forEach { childSnapshot ->
+                        childSnapshot.getValue(Contacts::class.java)?.let { contact ->
+                            newContacts.add(contact)
+                        }
+                    }
+                }
+                contacts = newContacts
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Toast.makeText(
+                    context,
+                    "Failed to load contacts: ${error.message}",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
 
+        // Add the listener when the effect starts
+        fbRef?.addValueEventListener(listener)
 
+        // The onDispose block is called when the composable leaves the screen
+        onDispose {
+            // IMPORTANT: Remove the listener to prevent memory leaks and crashes
+            fbRef?.removeEventListener(listener)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Contact List", style = MaterialTheme.typography.headlineMedium)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (contacts.isEmpty()) {
+            Text("No contacts")
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                items(items = contacts,
+                      key = { contact -> contact.id } // Use the unique ID from Firebase
+                ) { contact ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = contact.name,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Email: ${contact.email}",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Phone: ${contact.phone}",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(onClick = {
+            // Navigate back to the NoteApp screen
+            navController.popBackStack()
+        }) {
+            Text("Go Back to Notes")
+        }
     }
 }
 
 @Composable
 fun NoteApp(
     viewModel: NoteViewModel = viewModel(),
-    fbRef: DatabaseReference?  // nullable because Preview can't instantiate a real FirebaseDatabase
+    fbRef: DatabaseReference?,  // nullable because Preview can't instantiate a real FirebaseDatabase
+    navController: NavController? // Add NavController, nullable for Preview
 ) {
     val notes by viewModel.notes.collectAsState()
     var newText by remember { mutableStateOf("") }
     val context = LocalContext.current // 1. Get the context
 
-    Column(modifier = Modifier
-        .padding(16.dp))
+    Column(
+        modifier = Modifier
+            .padding(16.dp)
+    )
     {
+        // Add a button to navigate to the second screen
+        Button(
+            onClick = { navController?.navigate("contacts") },
+            enabled = navController != null // Disable in preview
+        ) {
+            Text("Edit Contacts")
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = { navController?.navigate("contact_list") },
+            enabled = navController != null // Disable in preview
+        ) {
+            Text("View Contacts")
+        }
+        Spacer(modifier = Modifier.height(16.dp))
         OutlinedTextField(
             value = newText,
             onValueChange = { newText = it },
@@ -172,21 +434,24 @@ fun NoteApp(
         Spacer(modifier = Modifier.height(8.dp))
 
 // write text to Firebase Database
-        Button(onClick = {
-            if (newText.isNotBlank()) {
-                fbRef?.setValue(newText)
+        Button(
+            onClick = {
+                if (newText.isNotBlank()) {
+                    fbRef?.setValue(newText)
 
-                    ?.addOnSuccessListener {
-                        // 2. Show Toast on success
-                        Toast.makeText(context, "Value updated in Firebase", Toast.LENGTH_SHORT).show()
-                    }
-                    ?.addOnFailureListener {
-                        // Optional: Show a different message on failure
-                        Toast.makeText(context, "Failed to update value", Toast.LENGTH_SHORT).show()
-                    }
-                newText = ""
-            }
-        },
+                        ?.addOnSuccessListener {
+                            // 2. Show Toast on success
+                            Toast.makeText(context, "Value updated in Firebase", Toast.LENGTH_SHORT)
+                                .show()
+                        }
+                        ?.addOnFailureListener {
+                            // Optional: Show a different message on failure
+                            Toast.makeText(context, "Failed to update value", Toast.LENGTH_SHORT)
+                                .show()
+                        }
+                    newText = ""
+                }
+            },
 // Disable the button if Firebase is not available (i.e., in a preview)
             enabled = fbRef != null
         ) {
@@ -254,11 +519,33 @@ fun NoteAppPreview() {
     }
 
     // 3. Call your NoteApp composable within a theme
+
     MaterialTheme {
-        NoteApp(
-            viewModel = viewModel(factory = fakeViewModelFactory),
-            fbRef = null // <-- Pass null for the preview
-        )
+        val navController = rememberNavController()
+        NavHost(
+            navController = navController,
+            startDestination = "note_app"
+        ) {
+            composable("note_app") {
+                NoteApp(
+                    viewModel = viewModel(factory = fakeViewModelFactory),
+                    fbRef = null, // <-- Pass null for the preview
+                    navController = navController // Pass NavController
+                )
+            }
+            composable("contacts") {
+                ContactForm(
+                    navController = navController,
+                    fbRef = null
+                ) // <-- Pass null for the preview) // Pass NavController
+            }
+            composable("contact_list") {
+                ContactList(
+                    navController = navController,
+                    fbRef = null
+                )
+            }
+        }
     }
 }
 

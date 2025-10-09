@@ -41,6 +41,7 @@ dependencies {
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.firebase.database)
+    implementation(libs.androidx.navigation.compose)
     val room_version = "2.8.1"
     implementation("com.google.android.material:material:1.12.0") // Or the latest version
     // ... other dependencies
