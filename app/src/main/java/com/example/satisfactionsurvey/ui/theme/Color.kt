@@ -1,4 +1,4 @@
-package com.example.satisfaction.ui.theme
+package com.example.satisfactionsurvey.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

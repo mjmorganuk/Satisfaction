@@ -1,9 +1,3 @@
-//buildscript {
-//    ext {
-//        compose_ui_version = "1.7.2"
-//    }
-//}
-// Top-level build file
 // Top-level build file
 plugins {
     alias(libs.plugins.android.application) apply false
