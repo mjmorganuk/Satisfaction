@@ -22,9 +22,10 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.satisfactionsurvey.models.SurveyResponse
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
-import io.mockk.mockk
+import java.time.LocalDateTime
 
 // --------------------- MainActivity + UI ---------------------
 class MainActivity : ComponentActivity() {
@@ -48,7 +49,7 @@ class MainActivity : ComponentActivity() {
                     composable("survey") {
                         SatisfactionSurvey(
                             navController = navController,
-                            fbRef = this@MainActivity.firebaseRef,
+//                            fbRef = this@MainActivity.firebaseRef,
                             onFaceSelected = {
                                 onFaceSelected(it)
                             }
@@ -63,9 +64,24 @@ class MainActivity : ComponentActivity() {
 
     fun onFaceSelected(selection: String) {
         val context = this
-        Toast.makeText(context, "You selected: $selection", Toast.LENGTH_SHORT).show()
-    }
 
+        // Save the data to the Repository
+        val responseId = firebaseRef?.push()?.key!!
+        val userResponse =
+            SurveyResponse(id = responseId, rating = selection, dateTime = LocalDateTime.now())
+
+        firebaseRef?.child(responseId)?.setValue(userResponse)
+            ?.addOnCompleteListener {
+                Toast.makeText(
+                    context,
+                    "Thank you, your response has been noted",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            ?.addOnFailureListener {
+                Toast.makeText(context, "Something went wrong", Toast.LENGTH_SHORT).show()
+            }
+    }
 }
 
 
@@ -79,7 +95,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun SatisfactionSurvey(
     navController: NavController,
-    fbRef: DatabaseReference?,  // nullable because Preview can't instantiate a real FirebaseDatabase
+//    fbRef: DatabaseReference?,  // nullable because Preview can't instantiate a real FirebaseDatabase
     onFaceSelected: (String) -> Unit
 ) {
     val context = LocalContext.current
@@ -92,7 +108,7 @@ fun SatisfactionSurvey(
         IconButton(
             onClick = {
                 val choice = "Sad"
-                fbRef?.setValue(choice)
+//                fbRef?.setValue(choice)
                 onFaceSelected(choice)
             },
             modifier = Modifier.size(80.dp)
@@ -104,7 +120,7 @@ fun SatisfactionSurvey(
         IconButton(
             onClick = {
                 val choice = "Neutral"
-                fbRef?.setValue(choice)
+//                fbRef?.setValue(choice)
                 onFaceSelected(choice)
             },
             modifier = Modifier.size(80.dp)
@@ -116,7 +132,7 @@ fun SatisfactionSurvey(
         IconButton(
             onClick = {
                 val choice = "Happy"
-                fbRef?.setValue(choice)
+//                fbRef?.setValue(choice)
                 onFaceSelected(choice)
             },
             modifier = Modifier.size(80.dp)
@@ -139,7 +155,7 @@ fun SurveyPreview() {
     // --- Create a Mock DatabaseReference using MockK ---
     // Use 'relaxed = true' here to simplify mocking. It provides default answers (like nulls or empty tasks)
     // for any calls we don't explicitly define, which can prevent some crashes.
-    val fakeDbRef: DatabaseReference = mockk(relaxed = true)
+//    val fakeDbRef: DatabaseReference = mockk(relaxed = true)
 
 
     // 3. Call your NoteApp composable within a theme
@@ -153,7 +169,7 @@ fun SurveyPreview() {
             composable("survey") {
                 SatisfactionSurvey(
                     navController = navController,
-                    fbRef = fakeDbRef, // <-- Pass the fake reference
+//                    fbRef = fakeDbRef, // <-- Pass the fake reference
                     onFaceSelected = {
                         onSelected(it) // <-- Pass the empty function
                     }

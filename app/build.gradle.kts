@@ -15,7 +15,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.satisfactionsurvey" // Use assignment '='
-        minSdk = 24                           // Use assignment '='
+        minSdk = 26                           // Use assignment '='
         targetSdk = 34                        // Use assignment '='
         versionCode = 1                       // Use assignment '='
         versionName = "1.0"                   // Use assignment '='
